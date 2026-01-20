@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>Iris</title>
+    <title>SISTEMA IRIS</title>
     <style>
         * {
             margin: 0;
@@ -25,8 +25,8 @@
             bottom: 0;
             min-width: 100%;
             min-height: 100%;
-            z-index: -1; /* Mette il video dietro a tutto */
-            object-fit: cover; /* Evita distorsioni del video */
+            z-index: -1;
+            object-fit: cover;
         }
 
         #bouncing-text {
@@ -64,45 +64,45 @@
     </div>
 
     <video id="bg-video" loop muted playsinline>
-        <source src="background.mp4" type="video/mp4">
-      iris è caduta
+        <source id="video-source" src="background.mp4" type="video/mp4">
+        iris è caduta
     </video>
 
-    <div id="bouncing-text">IRIS TI AMO TI VOGLIO BENE IRIS COME SIRI HEY SIRI YES NIGGA</div>
+    <div id="bouncing-text">IRIS</div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <script>
         const textElement = document.getElementById('bouncing-text');
         const overlay = document.getElementById('overlay');
         const video = document.getElementById('bg-video');
+        const videoSource = document.getElementById('video-source');
         
-        // --- CONFIGURAZIONE ---
+        // --- CONFIGURAZIONE FIREBASE ---
+        const firebaseConfig = {
+            databaseURL: "https://iriscontrol-a207a-default-rtdb.firebaseio.com/"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // --- AUDIO & LOGICA ---
         const AUDIO_FILE = 'music.mp3'; 
-        const lyrics = [
-            "IRIS", "SEGUI IL SEGNALE", "NON GUARDARE INDIETRO", 
-            "RESTA NEL TRACCIATO", "INPUT ALTO", "OUTPUT BASSO", 
-            "PASSO DOPO PASSO", "ISTRUZIONE COMPLETATA"
-        ];
-        
-        let lyricIndex = 0;
         let audioCtx, x = 0, y = 0, dx = 6, dy = 6;
+        let isLiveText = false;
 
         async function init() {
-            // Avvia Video
             video.play();
-
-            // Avvia Audio Context
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             
             try {
                 const response = await fetch(AUDIO_FILE);
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-
                 const source = audioCtx.createBufferSource();
                 source.buffer = audioBuffer;
                 source.loop = true;
 
-                // Effetti: Reverb + Delay
                 const delay = audioCtx.createDelay();
                 delay.delayTime.value = 0.4;
                 const feedback = audioCtx.createGain();
@@ -110,7 +110,6 @@
                 const reverb = audioCtx.createConvolver();
                 reverb.buffer = createReverbBuffer(2.0);
 
-                // Connessioni
                 source.connect(reverb);
                 reverb.connect(delay);
                 delay.connect(feedback);
@@ -121,11 +120,36 @@
                 reverb.connect(audioCtx.destination);
 
                 source.start();
+                
+                // ASCOLTA COMANDI LIVE DA FIREBASE
+                setupFirebaseListeners();
+                
                 animate();
             } catch (e) {
                 console.error("Errore Audio:", e);
                 animate();
             }
+        }
+
+        function setupFirebaseListeners() {
+            // Ascolta cambio Video
+            database.ref('currentVideo').on('value', (snapshot) => {
+                const newVideo = snapshot.val();
+                if (newVideo) {
+                    videoSource.src = newVideo;
+                    video.load();
+                    video.play();
+                }
+            });
+
+            // Ascolta cambio Testo
+            database.ref('currentText').on('value', (snapshot) => {
+                const newText = snapshot.val();
+                if (newText) {
+                    textElement.textContent = newText;
+                    isLiveText = true; // Ferma il cambio automatico se l'admin scrive
+                }
+            });
         }
 
         function createReverbBuffer(seconds) {
@@ -143,20 +167,11 @@
         function animate() {
             const maxX = window.innerWidth - textElement.offsetWidth;
             const maxY = window.innerHeight - textElement.offsetHeight;
-            
-            x += dx; 
-            y += dy;
-
-            if (x >= maxX || x <= 0) { dx *= -1; changeText(); }
-            if (y >= maxY || y <= 0) { dy *= -1; changeText(); }
-
+            x += dx; y += dy;
+            if (x >= maxX || x <= 0) dx *= -1;
+            if (y >= maxY || y <= 0) dy *= -1;
             textElement.style.transform = `translate(${x}px, ${y}px)`;
             requestAnimationFrame(animate);
-        }
-
-        function changeText() {
-            lyricIndex = (lyricIndex + 1) % lyrics.length;
-            textElement.textContent = lyrics[lyricIndex];
         }
 
         overlay.addEventListener('click', () => {
