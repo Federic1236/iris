@@ -1,102 +1,131 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>iris</title>
+    <title>Iris</title>
     <style>
-        body {
+        * {
             margin: 0;
-            overflow: hidden;
-            background: #000;
-            /* Rapid rainbow background */
-            animation: rainbow 1.0s linear infinite;
+            padding: 0;
+            box-sizing: border-box;
         }
 
-        @keyframes rainbow {
-            0% { background: #ff0000; }
-            25% { background: #00ff00; }
-            50% { background: #0000ff; }
-            75% { background: #ffff00; }
-            100% { background: #ff0000; }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: black;
+            font-family: 'Arial Black', sans-serif;
+        }
+
+        /* Video a tutto schermo */
+        #bg-video {
+            position: fixed;
+            right: 0;
+            bottom: 0;
+            min-width: 100%;
+            min-height: 100%;
+            z-index: -1; /* Mette il video dietro a tutto */
+            object-fit: cover; /* Evita distorsioni del video */
         }
 
         #bouncing-text {
             position: absolute;
-            font-family: 'Impact', sans-serif;
-            font-size: 10vw;
+            font-size: 6vw;
             color: white;
-            text-shadow: 5px 5px 0px #000;
+            text-shadow: 0 0 20px rgba(0,0,0,0.8);
             white-space: nowrap;
             user-select: none;
             will-change: transform;
+            z-index: 10;
         }
 
-        #start-screen {
+        #overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.9);
+            background: rgba(0,0,0,0.85);
             color: white;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             font-size: 2rem;
             cursor: pointer;
-            z-index: 999;
+            z-index: 1000;
+            text-align: center;
         }
     </style>
 </head>
 <body>
 
-    <div id="start-screen">forza iris</div>
-    <div id="bouncing-text">IRIS IRIS IRIS SIRI SIRI</div>
+    <div id="overlay">
+        <h1>SISTEMA IRIS</h1>
+        <p>iris per sempre</p>
+    </div>
+
+    <video id="bg-video" loop muted playsinline>
+        <source src="background.mp4" type="video/mp4">
+      iris è caduta
+    </video>
+
+    <div id="bouncing-text">IRIS TI AMO TI VOGLIO BENE IRIS COME SIRI HEY SIRI YES NIGGA</div>
 
     <script>
-        const text = document.getElementById('bouncing-text');
-        const startScreen = document.getElementById('start-screen');
+        const textElement = document.getElementById('bouncing-text');
+        const overlay = document.getElementById('overlay');
+        const video = document.getElementById('bg-video');
         
-        // --- RELATIVE GITHUB PATH ---
-        // If your file is in the same folder, just use the filename.
-        // If it's in a folder called 'audio', use 'audio/music.mp3'
-        const AUDIO_FILE = 'Intro] (Suono di delay ritmico) Iris... .mp3'; 
-
-        let audioCtx, source, delay, reverb, feedback;
-        let x = 0, y = 0, dx = 10, dy = 10;
+        // --- CONFIGURAZIONE ---
+        const AUDIO_FILE = 'music.mp3'; 
+        const lyrics = [
+            "IRIS", "SEGUI IL SEGNALE", "NON GUARDARE INDIETRO", 
+            "RESTA NEL TRACCIATO", "INPUT ALTO", "OUTPUT BASSO", 
+            "PASSO DOPO PASSO", "ISTRUZIONE COMPLETATA"
+        ];
+        
+        let lyricIndex = 0;
+        let audioCtx, x = 0, y = 0, dx = 6, dy = 6;
 
         async function init() {
+            // Avvia Video
+            video.play();
+
+            // Avvia Audio Context
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             
-            // Load audio from the repo relative path
-            const response = await fetch(AUDIO_FILE);
-            const arrayBuffer = await response.arrayBuffer();
-            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            try {
+                const response = await fetch(AUDIO_FILE);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-            source = audioCtx.createBufferSource();
-            source.buffer = audioBuffer;
-            source.loop = true;
+                const source = audioCtx.createBufferSource();
+                source.buffer = audioBuffer;
+                source.loop = true;
 
-            // Effect: Delay (Echo)
-            delay = audioCtx.createDelay();
-            delay.delayTime.value = 0.3;
+                // Effetti: Reverb + Delay
+                const delay = audioCtx.createDelay();
+                delay.delayTime.value = 0.4;
+                const feedback = audioCtx.createGain();
+                feedback.gain.value = 0.4;
+                const reverb = audioCtx.createConvolver();
+                reverb.buffer = createReverbBuffer(2.0);
 
-            feedback = audioCtx.createGain();
-            feedback.gain.value = 0.5;
+                // Connessioni
+                source.connect(reverb);
+                reverb.connect(delay);
+                delay.connect(feedback);
+                feedback.connect(delay);
+                
+                source.connect(audioCtx.destination);
+                delay.connect(audioCtx.destination);
+                reverb.connect(audioCtx.destination);
 
-            // Effect: Reverb
-            reverb = audioCtx.createConvolver();
-            reverb.buffer = createReverbBuffer(2.0);
-
-            // Routing
-            source.connect(reverb);
-            reverb.connect(delay);
-            delay.connect(feedback);
-            feedback.connect(delay);
-            
-            source.connect(audioCtx.destination);
-            delay.connect(audioCtx.destination);
-            reverb.connect(audioCtx.destination);
-
-            source.start();
-            animate();
+                source.start();
+                animate();
+            } catch (e) {
+                console.error("Errore Audio:", e);
+                animate();
+            }
         }
 
         function createReverbBuffer(seconds) {
@@ -112,17 +141,26 @@
         }
 
         function animate() {
-            const maxX = window.innerWidth - text.offsetWidth;
-            const maxY = window.innerHeight - text.offsetHeight;
-            x += dx; y += dy;
-            if (x >= maxX || x <= 0) dx *= -1;
-            if (y >= maxY || y <= 0) dy *= -1;
-            text.style.transform = `translate(${x}px, ${y}px)`;
+            const maxX = window.innerWidth - textElement.offsetWidth;
+            const maxY = window.innerHeight - textElement.offsetHeight;
+            
+            x += dx; 
+            y += dy;
+
+            if (x >= maxX || x <= 0) { dx *= -1; changeText(); }
+            if (y >= maxY || y <= 0) { dy *= -1; changeText(); }
+
+            textElement.style.transform = `translate(${x}px, ${y}px)`;
             requestAnimationFrame(animate);
         }
 
-        startScreen.addEventListener('click', () => {
-            startScreen.remove();
+        function changeText() {
+            lyricIndex = (lyricIndex + 1) % lyrics.length;
+            textElement.textContent = lyrics[lyricIndex];
+        }
+
+        overlay.addEventListener('click', () => {
+            overlay.style.display = 'none';
             init();
         });
     </script>
